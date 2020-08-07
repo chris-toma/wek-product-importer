@@ -1,0 +1,36 @@
+version: '2.2'
+services:
+  php:
+    env_file:
+      - .env
+    build:
+      dockerfile: Dockerfile-${DOCKERFILE_FLAVOUR}
+      context: 'php'
+      args:
+        - PHP_BASE_IMAGE_VERSION
+        - X_LEGACY_GD_LIB
+    image: php-wekode
+    environment:
+      - GITHUB_API_TOKEN=${GITHUB_API_TOKEN}
+      - PHP_ENABLE_XDEBUG
+      - TEST_RUNTIME_PATH=/tmp/runtime
+    volumes:
+      - ./app:/var/www/html/app:delegated
+
+    ports:
+    - '8101:80'
+
+  mysql:
+    build: ./db
+    hostname: db
+    image: sandbox_mysql
+    container_name: sandbox_mysql
+    env_file:
+      - .env
+    volumes:
+      - ./db/data:/var/lib/mysql:delegated
+    expose:
+      - 3306
+    ports:
+      - "33062:3306"
+
