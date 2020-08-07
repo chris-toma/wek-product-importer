@@ -2,5 +2,5 @@
 # set $? to 1
 false
 while [ $? -ne 0 ]; do
-    php /var/www/html/app/products_update.php
+    php /var/www/html/app/import_products.php
 done
