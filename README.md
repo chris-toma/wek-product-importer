@@ -1,7 +1,13 @@
 # wek-product-importer
-## Usage
+## Setup
+```
+docker-compose up --build
+```
+On mysql container login with user and pass found in `.env` file and run the falowing commands:
 
 ```mysql
+ USE app;
+
  CREATE TABLE `products` (
   `id` int NOT NULL AUTO_INCREMENT,
   `name` varchar(255) COLLATE utf8_unicode_ci NOT NULL,
@@ -20,3 +26,6 @@
   key (external_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 ```
+
+##Usage
+On php container run `./import.sh` script.
