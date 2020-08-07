@@ -31,6 +31,63 @@ class Task
 
     }
 
+    public function execute()
+    {
+        $page = 1;
+        $productCount = $_ENV['DEFAULT_PRODUCT_COUNT'];
+        $retryCount = 0;
+
+        do {
+            if ($retryCount > $_ENV['RETRY_MAX_LIMIT']) {
+                print "end by max retry \n";
+                exit(1);
+                break;
+            }
+
+            $ret = $this->getProducts(
+                $_ENV['API_ENDPOINT_URL'],
+                $page,
+                $productCount
+            );
+
+            if ($ret['code'] == self::STATUS_NOT_OK) {
+                $retryCount++;
+                // decreasing the product per page value in case this is the problem
+                $productCount = $productCount > $_ENV['MIN_PRODUCT_COUNT']
+                    ? round($productCount / 2)
+                    : $_ENV['MIN_PRODUCT_COUNT'];
+
+                print "retry count {$retryCount} \n";
+                sleep(
+                    (
+                    $retryCount < $_ENV['MAX_DELAY_MULTIPLIER']
+                        ? $retryCount
+                        : $_ENV['MAX_DELAY_MULTIPLIER']
+                    ) * $_ENV['RETRY_DELAY_SECONDS']
+                );
+                // log data
+                continue;
+            } else {
+                // reset the retry count in case we had a retry before this
+                $retryCount = 0;
+                $page++;
+            }
+            if (count($ret['data']['products']) > 0) {
+                print "page {$ret['data']['current_page']} from {$ret['data']['total_pages']} has products \n";
+                try {
+                    $this->saveProducts($ret['data']['products']);
+                    //log success
+                } catch (Exception $e) {
+                    //log errors
+                }
+            } else {
+                print "no more products \n";
+                break;
+            }
+
+        } while ($retryCount > 0 || $ret['data']['current_page'] <= $ret['data']['total_pages']);
+    }
+
     /**
      * @param string $url
      * @param int    $page
@@ -44,17 +101,18 @@ class Task
         curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/xml']);
         curl_setopt($ch, CURLOPT_HEADER, 0);
         curl_setopt($ch, CURLOPT_USERPWD, $_ENV['APP_API_USERNAME'] . ":" . $_ENV['APP_API_PASSWORD']);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 20);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
         $return = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $data = json_decode($return, true);
         curl_close($ch);
 
         //@todo use constant
-        if ($httpCode == 200) {
+        if ($httpCode == 200 && $data) {
             return [
                 'code' => self::STATUS_OK,
-                'data' => json_decode($return, true),
+                'data' => $data,
             ];
 
         } else {
@@ -79,8 +137,11 @@ class Task
                 return $n['id'];
             }, $products
         );
-        $r = $this->em->getRepository(Product::class);
-        $existingProducts = $r->findBy(['externalId' => $ids]);
+
+        $existingProducts = $this->em
+            ->getRepository(Product::class)
+            ->findBy(['externalId' => $ids])
+        ;
 
         foreach ($products as $product) {
             $existingProduct = array_filter(
