@@ -10,8 +10,12 @@ use Doctrine\Persistence\Mapping\MappingException;
  */
 class Task
 {
-    const STATUS_OK = 0;
-    const STATUS_NOT_OK = 1;
+    const CURL_STATUS_OK = 0;
+    const CURL_STATUS_NOT_OK = 10;
+
+    const IMPORT_STATUS_OK = 0;
+    const IMPORT_STATUS_DOCTRINE_EXCEPTION = 20;
+    const IMPORT_STATUS_NO_MORE_PRODUCTS = 30;
 
     /**
      * @var EntityManager
@@ -31,62 +35,89 @@ class Task
 
     }
 
-    public function execute()
+    public function executeImport($page, $productCount)
     {
-        $page = 1;
-        $productCount = $_ENV['DEFAULT_PRODUCT_COUNT'];
-        $retryCount = 0;
+        $ret = $this->getProducts(
+            $_ENV['API_ENDPOINT_URL'],
+            $page,
+            $productCount
+        );
 
-        do {
-            if ($retryCount > $_ENV['RETRY_MAX_LIMIT']) {
-                print "end by max retry \n";
-                exit(1);
-                break;
-            }
-
-            $ret = $this->getProducts(
-                $_ENV['API_ENDPOINT_URL'],
-                $page,
-                $productCount
-            );
-
-            if ($ret['code'] == self::STATUS_NOT_OK) {
-                $retryCount++;
-                // decreasing the product per page value in case this is the problem
-                $productCount = $productCount > $_ENV['MIN_PRODUCT_COUNT']
-                    ? round($productCount / 2)
-                    : $_ENV['MIN_PRODUCT_COUNT'];
-
-                print "retry count {$retryCount} \n";
-                sleep(
-                    (
-                    $retryCount < $_ENV['MAX_DELAY_MULTIPLIER']
-                        ? $retryCount
-                        : $_ENV['MAX_DELAY_MULTIPLIER']
-                    ) * $_ENV['RETRY_DELAY_SECONDS']
-                );
-                // log data
-                continue;
-            } else {
-                // reset the retry count in case we had a retry before this
-                $retryCount = 0;
-                $page++;
-            }
-            if (count($ret['data']['products']) > 0) {
-                print "page {$ret['data']['current_page']} from {$ret['data']['total_pages']} has products \n";
+        if ($ret['code'] == self::CURL_STATUS_OK) {
+            if (($c = count($ret['data']['products'])) > 0) {
+                shell_exec("echo {$c} products found >> log.log");
                 try {
                     $this->saveProducts($ret['data']['products']);
-                    //log success
+                    exit(self::IMPORT_STATUS_OK);
+
                 } catch (Exception $e) {
-                    //log errors
+                    exit(self::IMPORT_STATUS_DOCTRINE_EXCEPTION);
                 }
             } else {
-                print "no more products \n";
-                break;
+                shell_exec("echo {$c} products found >> log.log");
+                exit(self::IMPORT_STATUS_NO_MORE_PRODUCTS);
             }
-
-        } while ($retryCount > 0 || $ret['data']['current_page'] <= $ret['data']['total_pages']);
+        } else {
+            exit(self::CURL_STATUS_NOT_OK);
+        }
     }
+
+//    public function execute()
+//    {
+//        $page = 1;
+//        $productCount = $_ENV['DEFAULT_PRODUCT_COUNT'];
+//        $retryCount = 0;
+//
+//        do {
+//            if ($retryCount > $_ENV['RETRY_MAX_LIMIT']) {
+//                print "end by max retry \n";
+//                exit(1);
+//                break;
+//            }
+//
+//            $ret = $this->getProducts(
+//                $_ENV['API_ENDPOINT_URL'],
+//                $page,
+//                $productCount
+//            );
+//
+//            if ($ret['code'] == self::STATUS_NOT_OK) {
+//                $retryCount++;
+//                // decreasing the product per page value in case this is the problem
+//                $productCount = $productCount > $_ENV['MIN_PRODUCT_COUNT']
+//                    ? round($productCount / 2)
+//                    : $_ENV['MIN_PRODUCT_COUNT'];
+//
+//                print "retry count {$retryCount} \n";
+//                sleep(
+//                    (
+//                    $retryCount < $_ENV['MAX_DELAY_MULTIPLIER']
+//                        ? $retryCount
+//                        : $_ENV['MAX_DELAY_MULTIPLIER']
+//                    ) * $_ENV['RETRY_DELAY_SECONDS']
+//                );
+//                // log data
+//                continue;
+//            } else {
+//                // reset the retry count in case we had a retry before this
+//                $retryCount = 0;
+//                $page++;
+//            }
+//            if (count($ret['data']['products']) > 0) {
+//                print "page {$ret['data']['current_page']} from {$ret['data']['total_pages']} has products \n";
+//                try {
+//                    $this->saveProducts($ret['data']['products']);
+//                    //log success
+//                } catch (Exception $e) {
+//                    //log errors
+//                }
+//            } else {
+//                print "no more products \n";
+//                break;
+//            }
+//
+//        } while ($retryCount > 0 || $ret['data']['current_page'] <= $ret['data']['total_pages']);
+//    }
 
     /**
      * @param string $url
@@ -103,6 +134,7 @@ class Task
         curl_setopt($ch, CURLOPT_USERPWD, $_ENV['APP_API_USERNAME'] . ":" . $_ENV['APP_API_PASSWORD']);
         curl_setopt($ch, CURLOPT_TIMEOUT, 20);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
+//        var_dump("{$url}?count={$count}&page={$page}");die;
         $return = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $data = json_decode($return, true);
@@ -111,13 +143,13 @@ class Task
         //@todo use constant
         if ($httpCode == 200 && $data) {
             return [
-                'code' => self::STATUS_OK,
+                'code' => self::CURL_STATUS_OK,
                 'data' => $data,
             ];
 
         } else {
             return [
-                'code' => self::STATUS_NOT_OK,
+                'code' => self::CURL_STATUS_NOT_OK,
             ];
         }
     }

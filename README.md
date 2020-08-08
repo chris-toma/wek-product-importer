@@ -28,4 +28,4 @@ On mysql container login with user and pass found in `.env` file and run the fal
 ```
 
 ##Usage
-On php container run `./import.sh` script.
+On php container run `./run_import.sh` script.
