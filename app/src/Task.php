@@ -45,7 +45,7 @@ class Task
 
         if ($ret['code'] == self::CURL_STATUS_OK) {
             if (($c = count($ret['data']['products'])) > 0) {
-                shell_exec("echo {$c} products found >> log.log");
+                shell_exec("echo {$c} products found on page {$page} >> log.log");
                 try {
                     $this->saveProducts($ret['data']['products']);
                     exit(self::IMPORT_STATUS_OK);
@@ -54,7 +54,7 @@ class Task
                     exit(self::IMPORT_STATUS_DOCTRINE_EXCEPTION);
                 }
             } else {
-                shell_exec("echo {$c} products found >> log.log");
+                shell_exec("echo {$c} products found on page {$page} >> log.log");
                 exit(self::IMPORT_STATUS_NO_MORE_PRODUCTS);
             }
         } else {
