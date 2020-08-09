@@ -1,6 +1,7 @@
 <?php
 
 require_once 'config/bootstrap.php';
+
 $page = $argv[1];
 $productCount = $argv[2];
 

@@ -14,8 +14,10 @@ $myPid = getmypid();
 $myPpid = posix_getppid();
 
 shell_exec("echo {$myPpid} {$myPid} >> log.log");
+
 pcntl_fork();
 passthru("kill {$myPid}");
+
 if(!isset($argv[1]))
     exit(1);
 $process = new Process(["{$phpBinaryPath}", 'import_products.php', $argv[1], $productCount]);
