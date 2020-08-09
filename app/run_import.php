@@ -30,6 +30,4 @@ if ($process->isSuccessful()) {
         shell_exec("php run_import.php " . 1);
     }
     shell_exec("echo no more products {$myPpid} {$myPid} >> log.log");
-    exit(111);
-
 }
